@@ -142,13 +142,22 @@ function Index() {
     if (window.confirm("Hapus semua riwayat antrean?")) { setHistory([]); localStorage.removeItem("queue_history"); }
   };
 
-  const handleFeedbackSuccess = async (rating: number, comment: string) => {
-    if (rating > 0 && ticket) {
-      await supabase.from("feedbacks").insert({ queue_id: ticket.id, queue_number: ticket.queue_number, rating, comment });
+const handleFeedbackSuccess = async (rating: number, comment: string) => {
+  setHasFeedback(true);
+  if (ticket) {
+    // 🔥 SIMPAN KE DATABASE (ini yang sebelumnya hilang)
+    if (rating >= 1) {
+      const { error } = await supabase.from("feedbacks").insert({
+        queue_id: ticket.id,
+        queue_number: ticket.queue_number,
+        rating,
+        comment: comment || "",
+      });
+      if (error) console.error("Gagal simpan feedback:", error);
     }
-    setHasFeedback(true);
-    if (ticket) saveToHistory(ticket, { rating, comment });
-  };
+    saveToHistory(ticket, { rating, comment });
+  }
+};
 
   return (
     <div className="relative min-h-screen bg-[#F6F8F5] flex flex-col overflow-hidden">
