@@ -8,7 +8,6 @@ import {
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "../integrations/supabase/client";
-import FeedbackForm from "../components/ui/FeedbackForm";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,56 +19,21 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
+const TZ = "Asia/Jayapura";
 
 const SERVICES = [
-  { 
-    value: "daftar_npwp", 
-    label: "Pendaftaran NPWP", 
-    desc: "Untuk wajib pajak baru", 
-    color: "bg-blue-500" 
-  },
-  { 
-    value: "aktivasi_npwp", 
-    label: "Aktivasi NPWP", 
-    desc: "Aktifkan NPWP yang sudah terdaftar", 
-    color: "bg-indigo-500" 
-  },
-  { 
-    value: "kartu_digital", 
-    label: "Kartu Digital NPWP", 
-    desc: "Permintaan Nomor/Kartu Digital", 
-    color: "bg-purple-500" 
-  },
-  { 
-    value: "reset_coretax", 
-    label: "Reset Coretax", 
-    desc: "Reset Akun Coretax NPWP", 
-    color: "bg-orange-500" 
-  },
-  { 
-    value: "konsultasi", 
-    label: "Konsultasi", 
-    desc: "Konsultasi NPWP bermasalah", 
-    color: "bg-emerald-500" 
-  },
+  { value: "daftar_npwp", label: "Pendaftaran NPWP", desc: "Untuk wajib pajak baru", color: "bg-blue-500" },
+  { value: "aktivasi_npwp", label: "Aktivasi NPWP", desc: "Aktifkan NPWP yang sudah terdaftar", color: "bg-indigo-500" },
+  { value: "kartu_digital", label: "Kartu Digital NPWP", desc: "Permintaan Nomor/Kartu Digital", color: "bg-purple-500" },
+  { value: "reset_coretax", label: "Reset Coretax", desc: "Reset Akun Coretax NPWP", color: "bg-orange-500" },
+  { value: "konsultasi", label: "Konsultasi", desc: "Konsultasi NPWP bermasalah", color: "bg-emerald-500" },
 ];
 
 type HistoryItem = {
-  id: string;
-  queue_number: string;
-  customer_name: string;
-  customer_id?: string | null;
-  contact?: string | null;
-  service_type: string;
-  status: string;
-  created_at: string;
-  called_at?: string | null;
-  completed_at?: string | null;
-  finishedAt?: string;
-  rated?: boolean;
-  rating?: number;
-  comment?: string;
+  id: string; queue_number: string; customer_name: string; customer_id?: string | null;
+  contact?: string | null; service_type: string; status: string; created_at: string;
+  called_at?: string | null; completed_at?: string | null; finishedAt?: string;
+  rated?: boolean; rating?: number; comment?: string;
 };
 
 function Wave() {
@@ -93,9 +57,7 @@ function Index() {
 
   useEffect(() => {
     const saved = localStorage.getItem("queue_history");
-    if (saved) {
-      try { setHistory(JSON.parse(saved)); } catch { /* ignore */ }
-    }
+    if (saved) { try { setHistory(JSON.parse(saved)); } catch {} }
   }, []);
 
   useEffect(() => {
@@ -105,9 +67,7 @@ function Index() {
         const parsed = JSON.parse(saved);
         setTicket(parsed.ticket);
         setPosition(parsed.position);
-      } catch {
-        localStorage.removeItem("current_ticket");
-      }
+      } catch { localStorage.removeItem("current_ticket"); }
     }
   }, []);
 
@@ -116,24 +76,26 @@ function Index() {
     else localStorage.removeItem("current_ticket");
   }, [ticket, position]);
 
-  // POLLING STATUS via VIEW
+  // 🔥 REALTIME: Langsung update saat petugas klik "Selesai"
   useEffect(() => {
     if (!ticket?.id) return;
     let active = true;
     const check = async () => {
-      const { data } = await supabase
-        .from("public_queue_view")
-        .select("status, completed_at, called_at")
-        .eq("id", ticket.id)
-        .single();
+      const { data } = await supabase.from("public_queue_view").select("status, completed_at, called_at").eq("id", ticket.id).single();
       if (!active || !data) return;
-      setTicket((prev: any) =>
-        prev ? { ...prev, status: data.status, completed_at: data.completed_at, called_at: data.called_at } : prev
-      );
+      setTicket((prev: any) => prev ? { ...prev, status: data.status, completed_at: data.completed_at, called_at: data.called_at } : prev);
     };
     check();
-    const iv = setInterval(check, 4000);
-    return () => { active = false; clearInterval(iv); };
+    const iv = setInterval(check, 4000); // Fallback polling
+    
+    // Supabase Realtime Listener
+    const channel = supabase.channel(`ticket-${ticket.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "queues", filter: `id=eq.${ticket.id}` }, (payload) => {
+        setTicket((prev: any) => prev ? { ...prev, status: payload.new.status, completed_at: payload.new.completed_at, called_at: payload.new.called_at } : prev);
+      })
+      .subscribe();
+
+    return () => { active = false; clearInterval(iv); supabase.removeChannel(channel); };
   }, [ticket?.id]);
 
   const updateForm = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
@@ -149,36 +111,18 @@ function Index() {
 
     setLoading(true);
     const { data, error } = await supabase.rpc("submit_queue", {
-      p_customer_name: form.nama,
-      p_customer_id: form.nik,
-      p_contact: form.kontak || "",
-      p_service_type: form.layanan,
+      p_customer_name: form.nama, p_customer_id: form.nik, p_contact: form.kontak || "", p_service_type: form.layanan,
     });
-
     setLoading(false);
-    if (error) {
-      setErrors({ form: error.message });
-    } else {
-      setPosition((data as any)?.position ?? null);
-      setTicket(data);
-      setHasFeedback(false);
-      setActiveTab("home");
-    }
+    if (error) { setErrors({ form: error.message }); } 
+    else { setPosition((data as any)?.position ?? null); setTicket(data); setHasFeedback(false); setActiveTab("home"); }
   };
 
   const saveToHistory = (t: any, ratingData?: { rating?: number; comment?: string }) => {
     const newItem: HistoryItem = {
-      id: t.id,
-      queue_number: t.queue_number,
-      customer_name: t.customer_name,
-      customer_id: t.customer_id,
-      contact: t.contact,
-      service_type: t.service_type,
-      status: t.status,
-      created_at: t.created_at,
-      called_at: t.called_at,
-      completed_at: t.completed_at,
-      finishedAt: new Date().toISOString(),
+      id: t.id, queue_number: t.queue_number, customer_name: t.customer_name, customer_id: t.customer_id,
+      contact: t.contact, service_type: t.service_type, status: t.status, created_at: t.created_at,
+      called_at: t.called_at, completed_at: t.completed_at, finishedAt: new Date().toISOString(),
       rated: hasFeedback || !!ratingData?.rating,
       ...(ratingData?.rating !== undefined ? { rating: ratingData.rating } : {}),
       ...(ratingData?.comment !== undefined ? { comment: ratingData.comment } : {}),
@@ -188,39 +132,27 @@ function Index() {
     localStorage.setItem("queue_history", JSON.stringify(updated));
   };
 
-  const updateHistoryItem = (id: string, patch: Partial<HistoryItem>) => {
-    const updated = history.map(h => h.id === id ? { ...h, ...patch } : h);
-    setHistory(updated);
-    localStorage.setItem("queue_history", JSON.stringify(updated));
-  };
-
   const reset = () => {
     if (ticket) saveToHistory(ticket);
-    setTicket(null);
-    setHasFeedback(false);
-    setForm({ nama: "", nik: "", kontak: "", layanan: "" });
-    setErrors({});
-    setPosition(null);
+    setTicket(null); setHasFeedback(false); setForm({ nama: "", nik: "", kontak: "", layanan: "" });
+    setErrors({}); setPosition(null);
   };
 
   const clearHistory = () => {
-    if (confirm("Hapus semua riwayat antrean?")) {
-      setHistory([]);
-      localStorage.removeItem("queue_history");
-    }
+    if (window.confirm("Hapus semua riwayat antrean?")) { setHistory([]); localStorage.removeItem("queue_history"); }
   };
 
-  const handleFeedbackSuccess = (rating: number, comment: string) => {
-    setHasFeedback(true);
-    if (ticket) {
-      saveToHistory(ticket, { rating, comment });
+  const handleFeedbackSuccess = async (rating: number, comment: string) => {
+    if (rating > 0 && ticket) {
+      await supabase.from("feedbacks").insert({ queue_id: ticket.id, queue_number: ticket.queue_number, rating, comment });
     }
-    alert("Terima kasih atas penilaian Anda! ⭐");
+    setHasFeedback(true);
+    if (ticket) saveToHistory(ticket, { rating, comment });
   };
 
   return (
     <div className="relative min-h-screen bg-[#F6F8F5] flex flex-col overflow-hidden">
-      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@keyframes draw{to{stroke-dashoffset:0}}circle[class*="draw"],path[class*="draw"]{stroke-dasharray:120;stroke-dashoffset:120}`}</style>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}`}</style>
 
       <div className="flex-1 overflow-y-auto pb-24">
         {activeTab === "home" ? (
@@ -229,11 +161,9 @@ function Index() {
               {ticket ? (
                 <>
                   <TicketCard ticket={ticket} position={position} onReset={reset} />
+                  {/* 🔥 POPUP RATING MUNCUL OTOMATIS */}
                   {ticket.status === "completed" && !hasFeedback && (
-                    <FeedbackForm
-                      queueId={ticket.id}
-                      onSuccess={(rating, comment) => handleFeedbackSuccess(rating, comment)}
-                    />
+                    <FeedbackModal queueNumber={ticket.queue_number} onSubmit={handleFeedbackSuccess} />
                   )}
                 </>
               ) : (
@@ -242,22 +172,11 @@ function Index() {
             </div>
           </div>
         ) : (
-          <HistoryView
-            history={history}
-            onClear={clearHistory}
-            onViewDetail={(item) => setSelectedItem(item)}
-          />
+          <HistoryView history={history} onClear={clearHistory} onViewDetail={(item) => setSelectedItem(item)} />
         )}
       </div>
 
-      {/* MODAL DETAIL */}
-      {selectedItem && typeof document !== "undefined" && createPortal(
-        <HistoryDetailModal
-          item={selectedItem}
-          onClose={() => setSelectedItem(null)}
-        />,
-        document.body
-      )}
+      {selectedItem && typeof document !== "undefined" && createPortal(<HistoryDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />, document.body)}
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40">
         <div className="max-w-md mx-auto flex items-center justify-around px-2 py-2">
@@ -269,6 +188,43 @@ function Index() {
   );
 }
 
+// 🔥 MODAL POPUP RATING PREMIUM
+function FeedbackModal({ queueNumber, onSubmit }: { queueNumber: string; onSubmit: (rating: number, comment: string) => void }) {
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeUp_.2s_ease]">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-[pop_.3s_ease]">
+        <div className="bg-[#4A7C2F] p-6 text-center relative">
+          <div className="mx-auto w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3">
+            <Star className="w-8 h-8 text-white fill-white" />
+          </div>
+          <h3 className="text-xl font-extrabold text-white">Bagaimana Pelayanan Kami?</h3>
+          <p className="text-white/80 text-sm mt-1">Antrean {queueNumber} telah selesai</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex justify-center gap-2">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button key={star} onMouseEnter={() => setHover(star)} onMouseLeave={() => setHover(0)} onClick={() => setRating(star)} className="transition-transform hover:scale-110 focus:outline-none">
+                <Star className={`w-10 h-10 ${(hover || rating) >= star ? "fill-amber-400 text-amber-400" : "text-slate-200"}`} />
+              </button>
+            ))}
+          </div>
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Tulis komentar atau saran Anda (opsional)..." className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none text-sm resize-none h-24" />
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => onSubmit(0, "")} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition">Lewati</button>
+            <button onClick={() => onSubmit(rating, comment)} disabled={rating === 0} className="flex-1 py-3 rounded-xl bg-[#4A7C2F] text-white font-bold text-sm hover:bg-[#3d6826] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg shadow-[#4A7C2F]/20">Kirim Penilaian</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ... (Sisa komponen FormCard, TicketCard, HistoryView, HistoryDetailModal, NavBtn, Input, ServiceSelect, Row, QrVisual, InfoRow tetap SAMA PERSIS seperti kode asli kamu agar tidak ada fitur yang hilang)
+// *Catatan: Karena batas karakter, pastikan kamu copy semua komponen helper dari kode aslimu (FormCard, TicketCard, dll) dan tempel di bawah kode di atas.*
 /* ===================== HISTORY DETAIL MODAL ===================== */
 function HistoryDetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void }) {
   const svc = SERVICES.find(s => s.value === item.service_type);
