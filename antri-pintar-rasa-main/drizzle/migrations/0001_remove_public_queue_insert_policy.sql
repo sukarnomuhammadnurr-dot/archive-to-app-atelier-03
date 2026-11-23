@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS anon_insert_queue ON public.queues;
