@@ -32,9 +32,10 @@ function Admin() {
 
   const role = session?.user?.app_metadata?.role;
 
-  const fetchData = async () => {
-    const startOfDay = `${filterStart}T00:00:00`;
-    const endOfDay = `${filterEnd}T23:59:59`;
+const fetchData = async () => {
+  // 🔥 FIX: pakai offset WIT
+  const startOfDay = `${filterStart}T00:00:00+09:00`;
+  const endOfDay = `${filterEnd}T23:59:59+09:00`;
 
     const { count: total } = await supabase.from("queues").select("id", { count: "exact", head: true }).gte("created_at", startOfDay).lte("created_at", endOfDay);
     const { count: waiting } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting").gte("created_at", startOfDay).lte("created_at", endOfDay);
