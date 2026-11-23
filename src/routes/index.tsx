@@ -21,11 +21,38 @@ export const Route = createFileRoute("/")({
 });
 
 const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
+
 const SERVICES = [
-  { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
-  { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "bg-sky-500" },
-  { value: "HR", label: "HR", desc: "Human Resources", color: "bg-violet-500" },
-  { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "bg-emerald-500" },
+  { 
+    value: "daftar_npwp", 
+    label: "Pendaftaran NPWP", 
+    desc: "Untuk wajib pajak baru", 
+    color: "bg-blue-500" 
+  },
+  { 
+    value: "aktivasi_npwp", 
+    label: "Aktivasi NPWP", 
+    desc: "Aktifkan NPWP yang sudah terdaftar", 
+    color: "bg-indigo-500" 
+  },
+  { 
+    value: "kartu_digital", 
+    label: "Kartu Digital NPWP", 
+    desc: "Permintaan Nomor/Kartu Digital", 
+    color: "bg-purple-500" 
+  },
+  { 
+    value: "reset_coretax", 
+    label: "Reset Coretax", 
+    desc: "Reset Akun Coretax NPWP", 
+    color: "bg-orange-500" 
+  },
+  { 
+    value: "konsultasi", 
+    label: "Konsultasi", 
+    desc: "Konsultasi NPWP bermasalah", 
+    color: "bg-emerald-500" 
+  },
 ];
 
 type HistoryItem = {
