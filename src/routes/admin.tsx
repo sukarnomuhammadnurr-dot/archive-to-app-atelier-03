@@ -58,15 +58,16 @@ const fetchData = async () => {
     setStats({ total: total || 0, waiting: waiting || 0, called: called || 0, completed: completed || 0, avgRating: Number(avg.toFixed(1)) });
   };
 
-  useEffect(() => {
-    if (role !== "admin") return;
-    fetchData();
-    const ch = supabase.channel("admin-stats")
-      .on("postgres_changes", { event: "*", schema: "public", table: "queues" }, fetchData)
-      .on("postgres_changes", { event: "*", schema: "public", table: "feedbacks" }, fetchData) // 🔥 REALTIME FEEDBACK
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [role, filterStart, filterEnd]);
+ useEffect(() => {
+  if (role !== "admin") return;
+  fetchData();
+  const iv = setInterval(fetchData, 3000); // 🔥 auto-live, gak perlu refresh manual
+  const ch = supabase.channel("admin-stats")
+    .on("postgres_changes", { event: "*", schema: "public", table: "queues" }, fetchData)
+    .on("postgres_changes", { event: "*", schema: "public", table: "feedbacks" }, fetchData)
+    .subscribe();
+  return () => { clearInterval(iv); supabase.removeChannel(ch); };
+}, [role, filterStart, filterEnd]);
 
   const isTodayRange = filterStart === today && filterEnd === today;
   const formatTanggal = (iso: string) => new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
