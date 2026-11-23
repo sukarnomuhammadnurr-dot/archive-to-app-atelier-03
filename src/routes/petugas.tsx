@@ -88,7 +88,7 @@ function Petugas() {
 
   const suaraPanggilan = (nomor: string, nama: string, lk: string = loket) => {
     if (!("speechSynthesis" in window)) return;
-    const teks = `Nomor antrean ${nomor.replace("-", " ").replace(/0/g, "nol ")}, atas nama ${nama}, silakan menuju ke loket ${lk}.`;
+    const teks = `Nomor antrean ${nomor.replace("-", " ").replace(/0/g, "nol ")}, atas nama ${nama}, silahkan pergi ke loket NPWP ${lk}.`;
     const s = new SpeechSynthesisUtterance(teks);
     s.lang = "id-ID"; s.rate = 0.85;
     window.speechSynthesis.cancel();
