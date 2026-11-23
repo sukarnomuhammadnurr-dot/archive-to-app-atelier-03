@@ -145,7 +145,6 @@ function Index() {
 const handleFeedbackSuccess = async (rating: number, comment: string) => {
   setHasFeedback(true);
   if (ticket) {
-    // 🔥 SIMPAN KE DATABASE (ini yang sebelumnya hilang)
     if (rating >= 1) {
       const { error } = await supabase.from("feedbacks").insert({
         queue_id: ticket.id,
@@ -153,7 +152,10 @@ const handleFeedbackSuccess = async (rating: number, comment: string) => {
         rating,
         comment: comment || "",
       });
-      if (error) console.error("Gagal simpan feedback:", error);
+      if (error) {
+        console.error("FEEDBACK ERROR:", error);
+        alert("Feedback gagal disimpan: " + error.message);
+      }
     }
     saveToHistory(ticket, { rating, comment });
   }
