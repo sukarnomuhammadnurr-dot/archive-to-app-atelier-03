@@ -36,12 +36,27 @@ function Petugas() {
     return () => { sub.subscription.unsubscribe(); };
   }, []);
 
-  const fetchQueues = async () => {
-    if (!session) return;
-    const { data } = await supabase.from("queues").select("*").gte("created_at", `${filterStart}T00:00:00`).lte("created_at", `${filterEnd}T23:59:59`).order("created_at", { ascending: true });
-    if (data) setQueues(data as QueueItem[]);
-    setLoading(false);
-  };
+const fetchQueues = async () => {
+  if (!session) return;
+  
+  // 🔥 FIX: pakai AT TIME ZONE 'Asia/Jayapura' agar filter WIT benar
+  const startWIT = `${filterStart}T00:00:00+09:00`;
+  const endWIT = `${filterEnd}T23:59:59+09:00`;
+
+  const { data, error } = await supabase
+    .from("queues")
+    .select("*")
+    .gte("created_at", startWIT)
+    .lte("created_at", endWIT)
+    .order("created_at", { ascending: true });
+    
+  if (error) {
+    console.error("Fetch queues error:", error);
+    return;
+  }
+  if (data) setQueues(data as QueueItem[]);
+  setLoading(false);
+};
 
   useEffect(() => {
     if (!session) return;
